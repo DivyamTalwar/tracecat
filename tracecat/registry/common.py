@@ -1,5 +1,4 @@
 from typing import cast
-from urllib.parse import urlparse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,10 +75,9 @@ async def ensure_org_repositories(session: AsyncSession, role: Role) -> None:
 
     # Setup custom remote repository
     if remote_url:
-        parsed_url = urlparse(remote_url)
-        logger.info("Ensuring remote registry repository exists", url=parsed_url)
-
         cleaned_url = safe_url(remote_url)
+        logger.info("Ensuring remote registry repository exists", url=cleaned_url)
+
         if await repos_service.get_repository(cleaned_url) is None:
             try:
                 await repos_service.create_repository(

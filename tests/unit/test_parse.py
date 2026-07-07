@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from tracecat.expressions.common import eval_jsonpath
+from tracecat.git.utils import parse_git_url
 from tracecat.parse import (
     get_pyproject_toml_required_deps,
+    safe_url,
     traverse_expressions,
     traverse_leaves,
     unescape_string,
@@ -91,6 +93,54 @@ def test_traverse_expressions():
     assert list(traverse_expressions(data)) == []
     data = {"test": {}, "list": []}
     assert list(traverse_expressions(data)) == []
+
+
+def test_safe_url_removes_username_and_password_from_https_url() -> None:
+    url = "https://user:secret@example.com:8443/org/repo.git?token=value#section"
+
+    assert safe_url(url) == "https://example.com:8443/org/repo.git"
+
+
+def test_safe_url_removes_username_only_userinfo_from_https_url() -> None:
+    url = "https://token@example.com/org/repo.git"
+
+    assert safe_url(url) == "https://example.com/org/repo.git"
+
+
+def test_safe_url_removes_userinfo_from_ssh_url() -> None:
+    url = "ssh://git:secret@example.com/org/repo.git"
+
+    assert safe_url(url) == "ssh://example.com/org/repo.git"
+
+
+def test_safe_url_preserves_git_ssh_user_for_registry_urls() -> None:
+    url = "git+ssh://git@github.com/org/repo.git"
+
+    assert safe_url(url) == url
+
+
+def test_safe_url_removes_git_ssh_password_without_breaking_registry_url() -> None:
+    url = "git+ssh://git:secret@github.com/org/repo.git"
+    cleaned_url = safe_url(url)
+
+    assert cleaned_url == "git+ssh://git@github.com/org/repo.git"
+    git_url = parse_git_url(cleaned_url)
+    assert git_url.user == "git"
+    assert git_url.host == "github.com"
+    assert git_url.org == "org"
+    assert git_url.repo == "repo"
+
+
+def test_safe_url_preserves_host_port_and_path_without_query_or_fragment() -> None:
+    url = "https://example.com:9443/org/repo.git?ref=main#readme"
+
+    assert safe_url(url) == "https://example.com:9443/org/repo.git"
+
+
+def test_safe_url_preserves_ipv6_host_when_removing_credentials() -> None:
+    url = "https://user:secret@[2001:db8::1]:8443/org/repo.git?token=value"
+
+    assert safe_url(url) == "https://[2001:db8::1]:8443/org/repo.git"
 
 
 def test_parse_pyproject_toml_deps_basic(tmp_path: Path) -> None:

@@ -77,7 +77,16 @@ def safe_url(url: str) -> str:
     url_obj = urlparse(url)
     # XXX(safety): Reconstruct url without credentials.
     # Note that we do not recommend passing credentials in the url.
-    cleaned_url = urlunparse((url_obj.scheme, url_obj.netloc, url_obj.path, "", "", ""))
+    if "@" in url_obj.netloc:
+        userinfo, hostinfo = url_obj.netloc.rsplit("@", maxsplit=1)
+        if url_obj.scheme == "git+ssh":
+            user = userinfo.split(":", maxsplit=1)[0]
+            netloc = f"{user}@{hostinfo}" if user else hostinfo
+        else:
+            netloc = hostinfo
+    else:
+        netloc = url_obj.netloc
+    cleaned_url = urlunparse((url_obj.scheme, netloc, url_obj.path, "", "", ""))
     return cleaned_url
 
 
